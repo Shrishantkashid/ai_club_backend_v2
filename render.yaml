@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: ai-club-backend
+    env: node
+    buildCommand: "npm install"
+    startCommand: "npm start"
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false # This will be set in the Render dashboard
+      - key: JWT_SECRET
+        sync: false # This will be set in the Render dashboard
+      - key: FRONTEND_URL
+        sync: false # This will be set in the Render dashboard (your Vercel URL)
