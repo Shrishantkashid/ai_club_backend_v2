@@ -16,40 +16,20 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Valid email is required' });
     }
     
-    // Check if email is in the authorized list
-    const authorizedEmails = [
-      'shankarshivalingeshbelavi.23cs@saividya.ac.in',
-      'amruthashindhec.23cs@saividya.ac.in',
-      'mahimak.23cs@saividya.ac.in',
-      'ravisiddappaandani.23cs@saividya.ac.in',
-      'shilpan.24cs@saividya.ac.in',
-      'monishgowdah.23cs@saividya.ac.in',
-      'pallavikb.23cs@saividya.ac.in',
-      'rjeevitha.23cs@saividya.ac.in',
-      'niharikamkodige.23cs@saividya.ac.in',
-      'rishabhrnair.24cs@saividya.ac.in',
-      'saisanjanas.24cs@saividya.ac.in',
-      'rashmimaiyags.24cs@saividya.ac.in',
-      'manyam.24cs@saividya.ac.in',
-      'preetisureshdanagoud.24cs@saividya.ac.in',
-      'harinib.23cs@saividya.ac.in',
-      'jagadeeshaj.23cs@saividya.ac.in',
-      'sudharshankv.23cs@saividya.ac.in',
-      'mahalakshmis.23cs@saividya.ac.in',
-      'lasyas.23cs@saividya.ac.in',
-      'ankitham.23cs@saividya.ac.in',
-      'pranathim.23cs@saividya.ac.in',
-      'niharikarajput.23cs@saividya.ac.in',
-      'ahtishmulhaq.24cs@saividya.ac.in',
-      'mashoka.23cs@saividya.ac.in',
-      'priyac.23cs@saividya.ac.in',
-      'vedashreerameshnaik.23cs@saividya.ac.in',
-      'charangowdamd.24cs@saividya.ac.in',
-      'sandhyagk.23cs@saividya.ac.in'
-    ];
+    // Check if email has the correct domain
+    if (!email.toLowerCase().endsWith('@saividya.ac.in')) {
+      return res.status(400).json({ message: 'Only college email IDs are allowed (team leaders who registered for this event)' });
+    }
     
-    if (!authorizedEmails.includes(email.toLowerCase())) {
-      return res.status(400).json({ message: 'Your email is not authorized to access this contest' });
+    // Check if user exists in the database
+    const userExists = await User.findOne({ email: email.toLowerCase() });
+    
+    if (!userExists) {
+      return res.status(400).json({ 
+        message: 'Your email is not authorized to access this contest',
+        registrationLink: 'https://docs.google.com/forms/d/e/1FAIpQLScw--SXP-jLHvkja3gIA4zHlbToI91SEPdLlxG3y1K0qOMjxA/viewform',
+        registrationText: 'Register your team here'
+      });
     }
     
     // Check if user exists, if not create new user
@@ -410,6 +390,54 @@ router.post('/bulk-unlock', async (req, res) => {
     });
   } catch (error) {
     console.error('Bulk unlock error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Endpoint to add a single user to the authorized list
+// Usage: POST /api/contest/add-user
+router.post('/add-user', async (req, res) => {
+  try {
+    const { email, secret } = req.body;
+    
+    // Verify secret
+    if (secret !== 'escapeArena2026') {
+      return res.status(401).json({ message: 'Unauthorized: Invalid secret' });
+    }
+    
+    if (!email || !email.includes('@')) {
+      return res.status(400).json({ message: 'Valid email is required' });
+    }
+    
+    // Check if email has the correct domain
+    if (!email.toLowerCase().endsWith('@saividya.ac.in')) {
+      return res.status(400).json({ message: 'Only college email IDs are allowed' });
+    }
+    
+    // Check if user already exists
+    let user = await User.findOne({ email: email.toLowerCase() });
+    if (user) {
+      return res.status(200).json({ 
+        success: true, 
+        message: `User ${email} is already registered and authorized`,
+        email: email.toLowerCase()
+      });
+    }
+    
+    // Create new user
+    user = await User.create({
+      email: email.toLowerCase(),
+      status: 'ACTIVE',
+      reset_count: 0
+    });
+    
+    res.json({ 
+      success: true, 
+      message: `User ${email} has been added and authorized for the contest`,
+      email: email.toLowerCase()
+    });
+  } catch (error) {
+    console.error('Add user error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });
