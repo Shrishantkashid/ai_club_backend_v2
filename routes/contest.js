@@ -16,58 +16,9 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Valid email is required' });
     }
     
-    // Check if email is the admin account
-    if (email.toLowerCase() === 'admin@gmail.com') {
-      // Admin user - create if doesn't exist
-      let adminUser = await User.findOne({ email: email.toLowerCase() });
-      if (!adminUser) {
-        adminUser = await User.create({
-          email: email.toLowerCase(),
-          status: 'ADMIN',
-          reset_count: 0
-        });
-      }
-      
-      // Check if admin has already attempted the contest
-      const existingAttempt = await Attempt.findOne({ user_id: adminUser._id });
-      if (existingAttempt) {
-        return res.status(400).json({ 
-          message: 'Admin has already attempted the contest. Access denied.' 
-        });
-      }
-      
-      // Generate JWT token for admin
-      const token = jwt.sign(
-        { userId: adminUser._id, email: adminUser.email },
-        JWT_SECRET,
-        { expiresIn: '24h' }
-      );
-      
-      res.json({
-        token,
-        user: {
-          id: adminUser._id.toString(),
-          email: adminUser.email,
-          status: adminUser.status
-        }
-      });
-      return;
-    }
-    
     // Check if email has the correct domain
-    if (!email.toLowerCase().endsWith('@saividya.ac.in')) {
+    if (!email.toLowerCase().endsWith('@saividya.ac.in') && email.toLowerCase() !== 'admin@gmail.com') {
       return res.status(400).json({ message: 'Only college email IDs are allowed (team leaders who registered for this event)' });
-    }
-    
-    // Check if user exists in the database
-    const userExists = await User.findOne({ email: email.toLowerCase() });
-    
-    if (!userExists) {
-      return res.status(400).json({ 
-        message: 'Your email is not authorized to access this contest',
-        registrationLink: 'https://docs.google.com/forms/d/e/1FAIpQLScw--SXP-jLHvkja3gIA4zHlbToI91SEPdLlxG3y1K0qOMjxA/viewform',
-        registrationText: 'Register your team here'
-      });
     }
     
     // Check if user exists, if not create new user
