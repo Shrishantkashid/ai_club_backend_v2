@@ -16,9 +16,40 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Valid email is required' });
     }
     
-    // Check if email is from saividya.ac.in domain
-    if (!email.toLowerCase().endsWith('@saividya.ac.in')) {
-      return res.status(400).json({ message: 'Only @saividya.ac.in email addresses are allowed' });
+    // Check if email is in the authorized list
+    const authorizedEmails = [
+      'shankarshivalingeshbelavi.23cs@saividya.ac.in',
+      'amruthashindhec.23cs@saividya.ac.in',
+      'mahimak.23cs@saividya.ac.in',
+      'ravisiddappaandani.23cs@saividya.ac.in',
+      'shilpan.24cs@saividya.ac.in',
+      'monishgowdah.23cs@saividya.ac.in',
+      'pallavikb.23cs@saividya.ac.in',
+      'rjeevitha.23cs@saividya.ac.in',
+      'niharikamkodige.23cs@saividya.ac.in',
+      'rishabhrnair.24cs@saividya.ac.in',
+      'saisanjanas.24cs@saividya.ac.in',
+      'rashmimaiyags.24cs@saividya.ac.in',
+      'manyam.24cs@saividya.ac.in',
+      'preetisureshdanagoud.24cs@saividya.ac.in',
+      'harinib.23cs@saividya.ac.in',
+      'jagadeeshaj.23cs@saividya.ac.in',
+      'sudharshankv.23cs@saividya.ac.in',
+      'mahalakshmis.23cs@saividya.ac.in',
+      'lasyas.23cs@saividya.ac.in',
+      'ankitham.23cs@saividya.ac.in',
+      'pranathim.23cs@saividya.ac.in',
+      'niharikarajput.23cs@saividya.ac.in',
+      'ahtishmulhaq.24cs@saividya.ac.in',
+      'mashoka.23cs@saividya.ac.in',
+      'priyac.23cs@saividya.ac.in',
+      'vedashreerameshnaik.23cs@saividya.ac.in',
+      'charangowdamd.24cs@saividya.ac.in',
+      'sandhyagk.23cs@saividya.ac.in'
+    ];
+    
+    if (!authorizedEmails.includes(email.toLowerCase())) {
+      return res.status(400).json({ message: 'Your email is not authorized to access this contest' });
     }
     
     // Check if user exists, if not create new user
@@ -319,6 +350,66 @@ router.get('/unlock/:email', async (req, res) => {
     });
   } catch (error) {
     console.error('Unlock error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Bulk unlock endpoint for specific authorized emails
+// Usage: POST /api/contest/bulk-unlock
+router.post('/bulk-unlock', async (req, res) => {
+  try {
+    // Authorized emails list
+    const authorizedEmails = [
+      'shankarshivalingeshbelavi.23cs@saividya.ac.in',
+      'amruthashindhec.23cs@saividya.ac.in',
+      'mahimak.23cs@saividya.ac.in',
+      'ravisiddappaandani.23cs@saividya.ac.in',
+      'shilpan.24cs@saividya.ac.in',
+      'monishgowdah.23cs@saividya.ac.in',
+      'pallavikb.23cs@saividya.ac.in',
+      'rjeevitha.23cs@saividya.ac.in',
+      'niharikamkodige.23cs@saividya.ac.in',
+      'rishabhrnair.24cs@saividya.ac.in',
+      'saisanjanas.24cs@saividya.ac.in',
+      'rashmimaiyags.24cs@saividya.ac.in',
+      'manyam.24cs@saividya.ac.in',
+      'preetisureshdanagoud.24cs@saividya.ac.in',
+      'harinib.23cs@saividya.ac.in',
+      'jagadeeshaj.23cs@saividya.ac.in',
+      'sudharshankv.23cs@saividya.ac.in',
+      'mahalakshmis.23cs@saividya.ac.in',
+      'lasyas.23cs@saividya.ac.in',
+      'ankitham.23cs@saividya.ac.in',
+      'pranathim.23cs@saividya.ac.in',
+      'niharikarajput.23cs@saividya.ac.in',
+      'ahtishmulhaq.24cs@saividya.ac.in',
+      'mashoka.23cs@saividya.ac.in',
+      'priyac.23cs@saividya.ac.in',
+      'vedashreerameshnaik.23cs@saividya.ac.in',
+      'charangowdamd.24cs@saividya.ac.in',
+      'sandhyagk.23cs@saividya.ac.in'
+    ];
+    
+    // Delete all attempts for these specific users
+    const users = await User.find({ email: { $in: authorizedEmails } });
+    
+    if (users.length === 0) {
+      return res.status(404).json({ message: 'No authorized users found' });
+    }
+    
+    // Delete attempts for all authorized users
+    const userIds = users.map(user => user._id);
+    const result = await Attempt.deleteMany({ user_id: { $in: userIds } });
+    
+    console.log(`${result.deletedCount} attempts deleted for authorized users.`);
+    
+    res.json({ 
+      success: true,
+      message: `${result.deletedCount} user attempts have been reset. Authorized users can now participate in the contest.`,
+      count: result.deletedCount
+    });
+  } catch (error) {
+    console.error('Bulk unlock error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });
