@@ -31,8 +31,41 @@ router.post('/login', async (req, res) => {
       // Check if admin has already attempted the contest
       const existingAttempt = await Attempt.findOne({ user_id: adminUser._id });
       if (existingAttempt) {
-        return res.status(400).json({ 
-          message: 'Admin has already attempted the contest. Access denied.' 
+        // Contest completed - show leaderboard with ranking
+        const allAttempts = await Attempt.find({ is_disqualified: false })
+          .populate('user_id', 'email')
+          .sort({ total_points: -1, time_taken: 1 })
+          .exec();
+        
+        const formattedLeaderboard = allAttempts
+          .filter(entry => entry.user_id !== null)
+          .map((entry, index) => ({
+            userId: entry.user_id._id.toString(),
+            email: entry.user_id.email,
+            round1Score: entry.round1_score || 0,
+            round2Score: entry.round2_score || 0,
+            round3Score: entry.round3_score || 0,
+            totalPoints: entry.total_points || ((entry.round1_score || 0) + (entry.round2_score || 0) + (entry.round3_score || 0)),
+            accuracy: Math.round(entry.accuracy || 0),
+            timeTaken: entry.time_taken || 0,
+            rank: index + 1
+          }));
+        
+        const userRank = formattedLeaderboard.findIndex(entry => entry.userId === adminUser._id.toString()) + 1;
+        const userEntry = formattedLeaderboard.find(entry => entry.userId === adminUser._id.toString());
+        
+        return res.json({
+          contestCompleted: true,
+          message: 'Contest has been completed. Here are your results!',
+          user: {
+            id: adminUser._id.toString(),
+            email: adminUser.email,
+            status: adminUser.status
+          },
+          userRank,
+          userData: userEntry,
+          leaderboard: formattedLeaderboard,
+          totalParticipants: formattedLeaderboard.length
         });
       }
       
@@ -70,25 +103,51 @@ router.post('/login', async (req, res) => {
       });
     }
     
-    // Check if user exists, if not create new user
-    let user = await User.findOne({ email: email.toLowerCase() });
-    if (!user) {
-      user = await User.create({
-        email: email.toLowerCase(),
-        status: 'ACTIVE',
-        reset_count: 0
-      });
-    }
-
+    // Get user
+    const user = await User.findOne({ email: email.toLowerCase() });
+    
     // Check if this user has already attempted the contest
     const existingAttempt = await Attempt.findOne({ user_id: user._id });
     if (existingAttempt) {
-      return res.status(400).json({ 
-        message: 'You have already attempted the contest. Access denied.' 
+      // Contest completed - show leaderboard with ranking
+      const allAttempts = await Attempt.find({ is_disqualified: false })
+        .populate('user_id', 'email')
+        .sort({ total_points: -1, time_taken: 1 })
+        .exec();
+      
+      const formattedLeaderboard = allAttempts
+        .filter(entry => entry.user_id !== null)
+        .map((entry, index) => ({
+          userId: entry.user_id._id.toString(),
+          email: entry.user_id.email,
+          round1Score: entry.round1_score || 0,
+          round2Score: entry.round2_score || 0,
+          round3Score: entry.round3_score || 0,
+          totalPoints: entry.total_points || ((entry.round1_score || 0) + (entry.round2_score || 0) + (entry.round3_score || 0)),
+          accuracy: Math.round(entry.accuracy || 0),
+          timeTaken: entry.time_taken || 0,
+          rank: index + 1
+        }));
+      
+      const userRank = formattedLeaderboard.findIndex(entry => entry.userId === user._id.toString()) + 1;
+      const userEntry = formattedLeaderboard.find(entry => entry.userId === user._id.toString());
+      
+      return res.json({
+        contestCompleted: true,
+        message: 'Contest has been completed. Here are your results!',
+        user: {
+          id: user._id.toString(),
+          email: user.email,
+          status: user.status
+        },
+        userRank,
+        userData: userEntry,
+        leaderboard: formattedLeaderboard,
+        totalParticipants: formattedLeaderboard.length
       });
     }
     
-    // Generate JWT token
+    // Generate JWT token for new users who haven't attempted
     const token = jwt.sign(
       { userId: user._id, email: user.email },
       JWT_SECRET,
