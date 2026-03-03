@@ -38,4 +38,8 @@ mongoose.connect(process.env.MONGODB_URI)
     console.error('MongoDB connection error:', error);
     console.log('Please check your MongoDB Atlas connection string in .env file');
     console.log('Make sure the cluster name and credentials are correct');
+    // Still start the server to allow health checks
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT} (without MongoDB connection)`);
+    });
   });

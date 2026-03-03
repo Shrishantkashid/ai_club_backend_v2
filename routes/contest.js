@@ -334,20 +334,37 @@ router.get('/leaderboard', async (req, res) => {
       .sort({ total_points: -1, time_taken: 1 }) // Sort by total points descending, then by time ascending
       .exec();
 
-    const leaderboard = attempts.map(attempt => ({
-      userId: attempt.user_id._id.toString(),
-      email: attempt.user_id.email,
-      round1Score: attempt.round1_score,
-      round2Score: attempt.round2_score,
-      round3Score: attempt.round3_score || 0,
-      totalPoints: attempt.total_points || (attempt.round1_score + attempt.round2_score + (attempt.round3_score || 0)),
-      accuracy: Math.round(attempt.accuracy),
-      timeTaken: attempt.time_taken,
-      isDisqualified: attempt.is_disqualified,
-      submittedAt: attempt.submitted_at,
-      escapeKey: attempt.escape_key || '',
-      completedActivities: attempt.completed_activities || []
-    }));
+    console.log(`Found ${attempts.length} attempts`);
+
+    const leaderboard = attempts
+      .filter(attempt => {
+        if (!attempt.user_id) {
+          console.log('Filtering out attempt with null user_id:', attempt._id);
+          return false;
+        }
+        return true;
+      })
+      .map(attempt => {
+        // Calculate total_points if it doesn't exist or is undefined
+        const calculatedTotalPoints = (attempt.round1_score || 0) + (attempt.round2_score || 0) + (attempt.round3_score || 0);
+        
+        return {
+          userId: attempt.user_id._id.toString(),
+          email: attempt.user_id.email,
+          round1Score: attempt.round1_score || 0,
+          round2Score: attempt.round2_score || 0,
+          round3Score: attempt.round3_score || 0,
+          totalPoints: attempt.total_points || calculatedTotalPoints,
+          accuracy: Math.round(attempt.accuracy || 0),
+          timeTaken: attempt.time_taken || 0,
+          isDisqualified: attempt.is_disqualified,
+          submittedAt: attempt.submitted_at,
+          escapeKey: attempt.escape_key || '',
+          completedActivities: attempt.completed_activities || []
+        };
+      });
+
+    console.log(`Leaderboard built with ${leaderboard.length} participants`);
 
     res.json({ 
       leaderboard,
@@ -355,7 +372,10 @@ router.get('/leaderboard', async (req, res) => {
     });
   } catch (error) {
     console.error('Leaderboard error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({ 
+      message: 'Internal server error',
+      error: error.message 
+    });
   }
 });
 
