@@ -12,12 +12,16 @@ router.post('/login', async (req, res) => {
   try {
     const { email } = req.body;
     
+    console.log('Login attempt for email:', email);
+    
     if (!email || !email.includes('@')) {
+      console.log('Login failed: Invalid email format');
       return res.status(400).json({ message: 'Valid email is required' });
     }
     
     // Check if email is the admin account
     if (email.toLowerCase() === 'admin@gmail.com') {
+      console.log('Admin login detected');
       // Admin user - create if doesn't exist
       let adminUser = await User.findOne({ email: email.toLowerCase() });
       if (!adminUser) {
@@ -89,6 +93,7 @@ router.post('/login', async (req, res) => {
     
     // Check if email has the correct domain
     if (!email.toLowerCase().endsWith('@saividya.ac.in')) {
+      console.log('Login failed: Not a college email -', email);
       return res.status(400).json({ message: 'Only college email IDs are allowed (team leaders who registered for this event)' });
     }
     
@@ -96,12 +101,15 @@ router.post('/login', async (req, res) => {
     const userExists = await User.findOne({ email: email.toLowerCase() });
     
     if (!userExists) {
+      console.log('Login failed: User not found in database -', email);
       return res.status(400).json({ 
         message: 'Your email is not authorized to access this contest',
         registrationLink: 'https://docs.google.com/forms/d/e/1FAIpQLScw--SXP-jLHvkja3gIA4zHlbToI91SEPdLlxG3y1K0qOMjxA/viewform',
         registrationText: 'Register your team here'
       });
     }
+    
+    console.log('User found, checking for existing attempt...');
     
     // Get user
     const user = await User.findOne({ email: email.toLowerCase() });
@@ -153,6 +161,8 @@ router.post('/login', async (req, res) => {
       JWT_SECRET,
       { expiresIn: '24h' }
     );
+    
+    console.log('Login successful for:', email);
     
     res.json({
       token,
