@@ -185,45 +185,123 @@ router.post('/login', async (req, res) => {
           nextRound = 'sem2-round3';
           
           if (existingAttempt.round3_score !== undefined && existingAttempt.round3_score !== null) {
-            // All rounds completed but contest_end_time not set - submit final
-            try {
-              // Calculate total time and points
-              const endTime = new Date();
-              const startTime = existingAttempt.contest_start_time || existingAttempt.round1_start_time;
-              const totalTimeSeconds = Math.floor((endTime - startTime) / 1000);
-              
-              existingAttempt.contest_end_time = endTime;
-              existingAttempt.total_time_seconds = totalTimeSeconds;
-              existingAttempt.total_points = (existingAttempt.round1_score || 0) + 
-                                            (existingAttempt.round2_score || 0) + 
-                                            (existingAttempt.round3_score || 0);
-              await existingAttempt.save();
-              
-              // Now show leaderboard
-              const leaderboardData = await getLeaderboard();
-              const userRank = leaderboardData.findIndex(entry => entry.userId === user._id.toString()) + 1;
-              const userEntry = leaderboardData.find(entry => entry.userId === user._id.toString());
-              
-              return res.json({
-                contestCompleted: true,
-                message: 'Contest has been completed. Here are your results!',
-                user: {
-                  id: user._id.toString(),
-                  email: user.email,
-                  full_name: user.full_name || '',
-                  semester: user.semester,
-                  status: user.status
-                },
-                userRank,
-                userData: userEntry,
-                leaderboard: leaderboardData,
-                totalParticipants: leaderboardData.length
-              });
-            } catch (error) {
-              console.error('Error finalizing contest:', error);
+            // All rounds completed with a score - check if contest is fully finalized
+            if (!existingAttempt.contest_end_time) {
+              // Round 3 score exists but contest wasn't properly ended - finalize it
+              try {
+                // Calculate total time and points
+                const endTime = new Date();
+                const startTime = existingAttempt.contest_start_time || existingAttempt.round1_start_time;
+                const totalTimeSeconds = Math.floor((endTime - startTime) / 1000);
+                
+                existingAttempt.contest_end_time = endTime;
+                existingAttempt.total_time_seconds = totalTimeSeconds;
+                existingAttempt.total_points = (existingAttempt.round1_score || 0) + 
+                                              (existingAttempt.round2_score || 0) + 
+                                              (existingAttempt.round3_score || 0);
+                existingAttempt.accuracy = Math.round((existingAttempt.total_points / 300) * 100); // Max possible ~300
+                await existingAttempt.save();
+              } catch (error) {
+                console.error('Error finalizing contest:', error);
+              }
+            }
+            
+            // Show completed contest results
+            const leaderboardData = await getLeaderboard();
+            const userRank = leaderboardData.findIndex(entry => entry.userId === user._id.toString()) + 1;
+            const userEntry = leaderboardData.find(entry => entry.userId === user._id.toString());
+            
+            return res.json({
+              contestCompleted: true,
+              message: 'Contest has been completed. Here are your results!',
+              user: {
+                id: user._id.toString(),
+                email: user.email,
+                full_name: user.full_name || '',
+                semester: user.semester,
+                status: user.status
+              },
+              userRank,
+              userData: userEntry,
+              leaderboard: leaderboardData,
+              totalParticipants: leaderboardData.length
+            });
+          } else {
+            // Round 3 score is null/undefined, but check if all tasks/riddles are completed
+            // This handles the case where user completed all tasks but never submitted final round
+            const totalTasks = existingAttempt.round3_task_answers ? existingAttempt.round3_task_answers.length : 0;
+            const totalRiddles = existingAttempt.round3_riddle_answers ? existingAttempt.round3_riddle_answers.length : 0;
+            const correctTasks = existingAttempt.round3_task_answers ? existingAttempt.round3_task_answers.filter(t => t.isCorrect).length : 0;
+            const correctRiddles = existingAttempt.round3_riddle_answers ? existingAttempt.round3_riddle_answers.filter(r => r.isCorrect).length : 0;
+            
+            if (totalTasks >= 4 && totalRiddles >= 4) {
+              // User has completed all Round 3 tasks and riddles but no score calculated - finalize automatically
+              try {
+                // Calculate round 3 score based on completed tasks and riddles
+                let round3Score = 0;
+                
+                // Award 250 points if all tasks and riddles have been attempted (fixed amount regardless of correctness)
+                if (totalTasks >= 4 && totalRiddles >= 4) {
+                  round3Score = 250; // Fixed 250 points for attempting all tasks and riddles
+                  
+                  // Time bonus for fast completion
+                  const round3StartTime = existingAttempt.round3_start_time || existingAttempt.contest_start_time;
+                  const currentTime = new Date();
+                  const timeTaken = (currentTime - round3StartTime) / 1000;
+                  round3Score += Math.max(0, 100 - Math.floor(timeTaken / 10)); // Reduced time bonus denominator for higher potential points
+                } else {
+                  // Proportional scoring if not all tasks/riddles attempted
+                  round3Score = (totalTasks * 25) + (totalRiddles * 25); // 25 points per attempted task/riddle
+                }
+                
+                existingAttempt.round3_score = round3Score;
+                
+                // Calculate total time and finalize contest
+                const startTime = existingAttempt.round1_start_time || existingAttempt.contest_start_time;
+                const endTime = new Date();
+                const totalTimeSeconds = Math.floor((endTime - startTime) / 1000);
+                
+                existingAttempt.contest_end_time = endTime;
+                existingAttempt.total_time_seconds = totalTimeSeconds;
+                existingAttempt.total_points = (existingAttempt.round1_score || 0) + 
+                                              (existingAttempt.round2_score || 0) + 
+                                              (existingAttempt.round3_score || 0);
+                existingAttempt.accuracy = Math.round((existingAttempt.total_points / 300) * 100); // Max possible ~300
+                
+                await existingAttempt.save();
+                
+                // Now show leaderboard
+                const leaderboardData = await getLeaderboard();
+                const userRank = leaderboardData.findIndex(entry => entry.userId === user._id.toString()) + 1;
+                const userEntry = leaderboardData.find(entry => entry.userId === user._id.toString());
+                
+                return res.json({
+                  contestCompleted: true,
+                  message: 'Contest has been completed. Your Round 3 score has been calculated based on your completed tasks and riddles!',
+                  user: {
+                    id: user._id.toString(),
+                    email: user.email,
+                    full_name: user.full_name || '',
+                    semester: user.semester,
+                    status: user.status
+                  },
+                  userRank,
+                  userData: userEntry,
+                  leaderboard: leaderboardData,
+                  totalParticipants: leaderboardData.length
+                });
+              } catch (error) {
+                console.error('Error auto-finalizing contest:', error);
+              }
             }
           }
         }
+      }
+      
+      // Set start time for the appropriate round if not already set
+      if (nextRound === 'sem2-round3' && !existingAttempt.round3_start_time) {
+        existingAttempt.round3_start_time = new Date();
+        await existingAttempt.save();
       }
       
       // Return current progress and next round
@@ -574,7 +652,7 @@ router.post('/round2/activity/submit', authenticateToken, async (req, res) => {
 // Submit Round 2
 router.post('/round2/submit', authenticateToken, async (req, res) => {
   try {
-    const { endTime } = req.body;
+    const { endTime, activityScores, completedActivities } = req.body;
     const userId = req.user.userId;
     
     let attempt = await AttemptSem2.findOne({ user_id: userId });
@@ -583,20 +661,44 @@ router.post('/round2/submit', authenticateToken, async (req, res) => {
       return res.status(404).json({ message: 'No active attempt found' });
     }
     
+    // Handle both the old format (individual activity submissions) and new format (activityScores object)
+    let activitiesToProcess = [];
+    
+    if (activityScores && completedActivities) {
+      // New format - process activity scores object
+      activitiesToProcess = completedActivities.map(activityName => {
+        const scoreData = activityScores[activityName] || { moves: 0, timeTaken: 0 };
+        return {
+          activityName,
+          moves: scoreData.moves || 0,
+          timeTaken: scoreData.timeTaken || 0,
+          completed: true,
+          timestamp: new Date()
+        };
+      });
+    } else {
+      // Old format - use existing activities from database
+      activitiesToProcess = attempt.round2_activities_completed || [];
+    }
+    
+    // Update the attempt with processed activities
+    attempt.round2_activities_completed = activitiesToProcess;
+    
     // Calculate round 2 score based on completed activities
-    const activities = attempt.round2_activities_completed;
+    const activities = activitiesToProcess;
     const completedCount = activities.filter(a => a.completed).length;
     
-    // Base score for completing activities + bonus for speed and efficiency
+    // Award points based on number of completed activities with partial credit
     let round2Score = 0;
-    if (completedCount >= 3) {
-      round2Score = 100; // Base completion score
+    if (completedCount > 0) {
+      // Base score increases with each completed activity
+      round2Score = Math.min(100, completedCount * 33); // ~33 points per activity
       
-      // Bonus for each activity
+      // Bonus for each completed activity based on performance
       activities.forEach(activity => {
         if (activity.completed) {
-          const moveBonus = Math.max(0, 50 - activity.moves);
-          const timeBonus = Math.max(0, 30 - Math.floor(activity.timeTaken / 10));
+          const moveBonus = Math.max(0, Math.min(20, 20 - Math.floor(activity.moves / 5))); // Up to 20 points for efficient moves
+          const timeBonus = Math.max(0, Math.min(10, 15 - Math.floor(activity.timeTaken / 30))); // Up to 10 points for fast completion
           round2Score += moveBonus + timeBonus;
         }
       });
@@ -605,12 +707,29 @@ router.post('/round2/submit', authenticateToken, async (req, res) => {
     attempt.round2_score = round2Score;
     attempt.round2_end_time = endTime ? new Date(endTime) : new Date();
     
+    // For consistency, we should also update total time when Round 2 is submitted
+    // But only if this is the final submission (when contest is ending)
+    if (req.body.isFinalSubmission) {
+      const startTime = attempt.round1_start_time || attempt.contest_start_time;
+      const submissionEndTime = endTime ? new Date(endTime) : new Date();
+      const totalTimeSeconds = Math.floor((submissionEndTime - startTime) / 1000);
+      
+      attempt.contest_end_time = submissionEndTime;
+      attempt.total_time_seconds = totalTimeSeconds;
+      attempt.total_points = (attempt.round1_score || 0) + 
+                            (attempt.round2_score || 0) + 
+                            (attempt.round3_score || 0);
+      attempt.accuracy = Math.round((attempt.total_points / 300) * 100); // Max possible ~300
+    }
+    
     await attempt.save();
     
     res.json({
       success: true,
       score: round2Score,
-      activitiesCompleted: completedCount
+      activitiesCompleted: completedCount,
+      activities: activitiesToProcess,
+      totalTime: attempt.total_time_seconds
     });
     
   } catch (error) {
@@ -631,6 +750,11 @@ router.post('/round3/task/submit', authenticateToken, async (req, res) => {
     
     if (!attempt) {
       return res.status(404).json({ message: 'No active attempt found' });
+    }
+    
+    // Set round 3 start time if not already set (first interaction with Round 3)
+    if (!attempt.round3_start_time) {
+      attempt.round3_start_time = new Date();
     }
     
     // Add task answer
@@ -665,6 +789,11 @@ router.post('/round3/riddle/submit', authenticateToken, async (req, res) => {
     
     if (!attempt) {
       return res.status(404).json({ message: 'No active attempt found' });
+    }
+    
+    // Set round 3 start time if not already set (first interaction with Round 3)
+    if (!attempt.round3_start_time) {
+      attempt.round3_start_time = new Date();
     }
     
     // Add riddle answer
@@ -706,26 +835,43 @@ router.post('/round3/submit', authenticateToken, async (req, res) => {
     const taskAnswers = attempt.round3_task_answers;
     const riddleAnswers = attempt.round3_riddle_answers;
     
+    const totalTasks = taskAnswers.length;
+    const totalRiddles = riddleAnswers.length;
     const correctTasks = taskAnswers.filter(t => t.isCorrect).length;
     const correctRiddles = riddleAnswers.filter(r => r.isCorrect).length;
     
+    // Award 250 points if all tasks and riddles have been attempted (regardless of correctness)
     let round3Score = 0;
-    if (correctTasks === 4 && correctRiddles === 4) {
-      // Base completion score
-      round3Score = 200;
+    
+    if (totalTasks >= 4 && totalRiddles >= 4) {
+      round3Score = 250; // Fixed 250 points for attempting all tasks and riddles
       
-      // Time bonus
-      const timeTaken = (new Date(endTime) - attempt.round3_start_time) / 1000;
-      round3Score += Math.max(0, 100 - Math.floor(timeTaken / 5));
+      // Time bonus for fast completion
+      const timeTaken = (new Date(endTime) - (attempt.round3_start_time || attempt.contest_start_time)) / 1000;
+      round3Score += Math.max(0, 100 - Math.floor(timeTaken / 10)); // Reduced time bonus denominator for higher potential points
+    } else {
+      // Proportional scoring if not all tasks/riddles attempted
+      round3Score = (totalTasks * 25) + (totalRiddles * 25); // 25 points per attempted task/riddle
+    }
+    
+    // Set round 3 start time if not already set
+    if (!attempt.round3_start_time) {
+      attempt.round3_start_time = new Date();
     }
     
     attempt.round3_score = round3Score;
     attempt.round3_end_time = endTime ? new Date(endTime) : new Date();
     
     // Calculate total time and finalize contest
-    attempt.contest_end_time = new Date();
-    attempt.total_time_seconds = Math.floor((attempt.contest_end_time - attempt.contest_start_time) / 1000);
-    attempt.total_points = attempt.round1_score + attempt.round2_score + attempt.round3_score;
+    const startTime = attempt.round1_start_time || attempt.contest_start_time;
+    const submissionEndTime = endTime ? new Date(endTime) : new Date();
+    const totalTimeSeconds = Math.floor((submissionEndTime - startTime) / 1000);
+    
+    attempt.contest_end_time = submissionEndTime;
+    attempt.total_time_seconds = totalTimeSeconds;
+    attempt.total_points = (attempt.round1_score || 0) + 
+                          (attempt.round2_score || 0) + 
+                          (attempt.round3_score || 0);
     attempt.accuracy = Math.round((attempt.total_points / 300) * 100); // Max possible ~300
     
     await attempt.save();
@@ -733,7 +879,7 @@ router.post('/round3/submit', authenticateToken, async (req, res) => {
     res.json({
       success: true,
       score: round3Score,
-      totalTime: attempt.total_time_seconds,
+      totalTime: totalTimeSeconds,
       totalPoints: attempt.total_points,
       escapeKey
     });
@@ -759,16 +905,8 @@ const getLeaderboard = async () => {
   return attempts
     .filter(entry => entry.user_id !== null)
     .map((entry, index) => ({
-      userId: entry.user_id._id.toString(),
-      email: entry.user_id.email,
       fullName: entry.user_id.full_name || '',
-      semester: entry.user_id.semester,
-      round1Score: entry.round1_score || 0,
-      round2Score: entry.round2_score || 0,
-      round3Score: entry.round3_score || 0,
       totalPoints: entry.total_points || 0,
-      totalTime: entry.total_time_seconds || 0,
-      accuracy: entry.accuracy || 0,
       rank: index + 1
     }));
 };
