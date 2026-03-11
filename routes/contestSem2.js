@@ -76,6 +76,13 @@ router.post('/login', async (req, res) => {
       const normalizedExistingName = (user.full_name || '').toLowerCase().replace(/\s+/g, '');
       const normalizedNewName = fullName.toLowerCase().replace(/\s+/g, '');
       
+      console.log('Name comparison debug:');
+      console.log('  Existing name (raw):', `'${user.full_name || 'NULL'}'`);
+      console.log('  Input name (raw):', `'${fullName}'`);
+      console.log('  Existing name (normalized):', `'${normalizedExistingName}'`);
+      console.log('  Input name (normalized):', `'${normalizedNewName}'`);
+      console.log('  Names match:', normalizedExistingName === normalizedNewName);
+      
       // If names match (same person)
       if (normalizedExistingName === normalizedNewName) {
         // Check if this is a LOGIN attempt or REGISTRATION attempt
@@ -97,16 +104,19 @@ router.post('/login', async (req, res) => {
             message: `⚠️ You already have an account! Please use the Login tab to sign in with your existing credentials.`,
             emailExists: true,
             existingEmail: email,
-            existingSemester: user.semester
+            existingSemester: user.semester,
+            existingName: user.full_name || 'Unknown'
           });
         }
       } else {
         // Different person with similar name - email collision
+        console.log('Name mismatch - existing:', user.full_name, 'vs input:', fullName);
         return res.status(400).json({ 
-          message: `An account with email ${email} already exists for Semester ${user.semester}. Please use a different name or contact support.`,
+          message: `An account with email ${email} already exists for Semester ${user.semester}, but the name doesn't match. If this is your account, please use the exact same name: "${user.full_name || 'Unknown'}"`,
           emailExists: true,
           existingEmail: email,
-          existingSemester: user.semester
+          existingSemester: user.semester,
+          existingName: user.full_name || 'Unknown'
         });
       }
     } else {
