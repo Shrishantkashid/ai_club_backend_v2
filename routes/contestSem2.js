@@ -73,7 +73,7 @@ router.post('/login', async (req, res) => {
     
     if (user) {
       // Email already exists - check if it's the same person
-      const normalizedExistingName = user.full_name.toLowerCase().replace(/\s+/g, '');
+      const normalizedExistingName = (user.full_name || '').toLowerCase().replace(/\s+/g, '');
       const normalizedNewName = fullName.toLowerCase().replace(/\s+/g, '');
       
       // If names match (same person)
@@ -151,7 +151,7 @@ router.post('/login', async (req, res) => {
           user: {
             id: user._id.toString(),
             email: user.email,
-            full_name: user.full_name,
+            full_name: user.full_name || '',
             semester: user.semester,
             status: user.status
           },
@@ -200,7 +200,7 @@ router.post('/login', async (req, res) => {
                 user: {
                   id: user._id.toString(),
                   email: user.email,
-                  full_name: user.full_name,
+                  full_name: user.full_name || '',
                   semester: user.semester,
                   status: user.status
                 },
@@ -225,7 +225,7 @@ router.post('/login', async (req, res) => {
         user: {
           id: user._id.toString(),
           email: user.email,
-          full_name: user.full_name,
+          full_name: user.full_name || '',
           semester: user.semester,
           status: user.status
         },
@@ -249,7 +249,7 @@ router.post('/login', async (req, res) => {
       user: {
         id: user._id.toString(),
         email: user.email,
-        full_name: user.full_name,
+        full_name: user.full_name || '',
         semester: user.semester,
         status: user.status
       },
@@ -751,7 +751,7 @@ const getLeaderboard = async () => {
     .map((entry, index) => ({
       userId: entry.user_id._id.toString(),
       email: entry.user_id.email,
-      fullName: entry.user_id.full_name,
+      fullName: entry.user_id.full_name || '',
       semester: entry.user_id.semester,
       round1Score: entry.round1_score || 0,
       round2Score: entry.round2_score || 0,
