@@ -4,6 +4,7 @@ const openDayAttemptSchema = new mongoose.Schema({
     name: { type: String, required: true },
     usn: { type: String, required: true },
     email: { type: String, required: true },
+    password: { type: String, required: true },
     initialPhoto: { type: String }, // Base64 or path
     finalPhoto: { type: String },   // Base64 or path
     startTime: { type: Date, default: Date.now },

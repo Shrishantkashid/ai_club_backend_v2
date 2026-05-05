@@ -3,25 +3,30 @@ const router = express.Router();
 const OpenDayAttempt = require('../models/OpenDayAttempt');
 const nodemailer = require('nodemailer');
 const { v4: uuidv4 } = require('uuid');
+const bcrypt = require('bcryptjs');
 
 // Configure Nodemailer (Placeholder - User should update with real SMTP)
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-        user: process.env.EMAIL_USER || 'your-email@gmail.com',
-        pass: process.env.EMAIL_PASS || 'your-app-password'
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
     }
 });
 
 // Register initial entry
 router.post('/register', async (req, res) => {
     try {
-        const { name, usn, email, initialPhoto } = req.body;
+        const { name, usn, email, password, initialPhoto } = req.body;
+        
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
         
         const attempt = new OpenDayAttempt({
             name,
             usn,
             email,
+            password: hashedPassword,
             initialPhoto,
             verificationToken: uuidv4()
         });
@@ -125,12 +130,18 @@ router.get('/details', async (req, res) => {
 // Final verification
 router.post('/verify', async (req, res) => {
     try {
-        const { token, usn, finalPhoto } = req.body;
+        const { token, usn, email, password, finalPhoto } = req.body;
         
         const attempt = await OpenDayAttempt.findOne({ verificationToken: token, usn });
         if (!attempt) return res.status(404).json({ message: 'Invalid verification link' });
         
         if (attempt.isVerified) return res.status(400).json({ message: 'Already verified' });
+        
+        // Verify email and password
+        if (attempt.email !== email) return res.status(401).json({ message: 'Incorrect email' });
+        
+        const isMatch = await bcrypt.compare(password, attempt.password);
+        if (!isMatch) return res.status(401).json({ message: 'Incorrect password' });
         
         attempt.finalPhoto = finalPhoto;
         attempt.isVerified = true;
@@ -139,6 +150,7 @@ router.post('/verify', async (req, res) => {
         await attempt.save();
         res.json({ message: 'Attendance verified successfully', name: attempt.name });
     } catch (error) {
+        console.error('Verification error:', error);
         res.status(500).json({ message: 'Server error' });
     }
 });
