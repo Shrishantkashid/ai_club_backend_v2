@@ -73,7 +73,8 @@ router.post('/feedback', async (req, res) => {
         await attempt.save();
         
         // Send verification email
-        const verifyLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/#/open-day/verify?token=${attempt.verificationToken}&usn=${attempt.usn}`;
+        const baseUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+        const verifyLink = `${baseUrl}/#/open-day/verify?token=${attempt.verificationToken}&usn=${attempt.usn}`;
         
         const mailOptions = {
             from: process.env.EMAIL_USER,
